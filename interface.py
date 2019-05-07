@@ -122,7 +122,7 @@ def coordinate():
 @app.route('/viewbytopic', methods=['POST'])
 def viewbytopic():
     topic = request.form.get('topic')
-    print(topic)
+    #print(topic)
     cypher = 'match (p:Place) return p'
     nodes  = graph.run(cypher).data()
     places_response = []
@@ -135,6 +135,44 @@ def viewbytopic():
         temp['posRate'] = round(100 * nodes[i]['p']['posRate'+topic_num[topic]], 2)
         places_response.append(temp)
     return Response(json.dumps({"places": places_response}), mimetype="application/json")
+
+@app.route('/neighbor', methods=['POST'])
+def neighbor():
+    place = request.form.get('place')
+    means = request.form.get('means')
+    if means == "any":
+        means = ''
+    else:
+        means = ':' + means
+    cypher = 'match (p1:Place{name:"%s"})-[r%s]-(p2:Place) return distinct p1, p2, r' % (place, means)
+    result = graph.run(cypher).data()
+    rel_response = {}
+    rel_response["node"] = []
+    rel_response["link"] = []
+    nodeId = 0
+    rel_response["node"].append({"name":place, "id":nodeId})
+    nodeId += 1
+    dest = []
+    for record in result:
+        if record['p2']['name'] not in dest:
+            dest.append(record['p2']['name'])
+            rel_response["node"].append({"name":record['p2']['name'], "id":nodeId})
+            type_str = str(type(record['r']))
+            rel_type = type_str[20:len(type_str)-2]
+            #rel_response["link"].append({"source":0, "target":nodeId, "means":rel_type, "count":record['r']['count']})
+            rel_response["link"].append({"source":0, "target":nodeId, "count":record['r']['count']})
+            print(rel_response)
+            nodeId += 1
+        else:
+            for node in rel_response["node"]:
+                if node['name'] == record['p2']['name']:
+                    tempId = node['id']
+            for edge in rel_response["link"]:
+                if edge["target"] == tempId:
+                    edge["count"] += record['r']['count']
+    return Response(json.dumps(rel_response), mimetype="application/json")
+
+
 
 @app.route('/example', methods=['POST'])
 def example():
